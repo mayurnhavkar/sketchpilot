@@ -12,6 +12,18 @@ export function artifactKey(e, byId = {}, depth = 0) {
   const c = depth < 4 && e.containerId && byId[e.containerId];
   return c ? artifactKey(c, byId, depth + 1) : null;
 }
+// Scenes saved before elements carried their artifact key in customData: tag them from their id prefix once.
+export function migrateArtifacts(elements) {
+  let changed = false;
+  const out = elements.map((e) => {
+    if (e.customData?.artifact) return e;
+    const key = e.id?.match?.(ID_KEY)?.[1];
+    if (!key) return e;
+    changed = true;
+    return { ...e, customData: { ...(e.customData || {}), artifact: key } };
+  });
+  return changed ? out : elements;
+}
 export const withArtifactKey = (elements, key) => elements.map((e) => ({ ...e, customData: { ...(e.customData || {}), artifact: key } }));
 const rid = () => Math.floor(Math.random() * 2 ** 31);
 

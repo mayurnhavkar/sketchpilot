@@ -13,11 +13,14 @@
     "@excalidraw/excalidraw": "^0.18.1",
     "@excalidraw/mermaid-to-excalidraw": "^3.2.0",
     "fflate": "^0.8.3",
+    "lz-string": "^1.5.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.2",
-    "vite": "^8.3.5"
+    "markdown-it": "^15.0.3",
+    "vite": "^8.3.5",
+    "yaml": "^2.9.1"
   }
 }

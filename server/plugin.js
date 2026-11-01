@@ -5,6 +5,7 @@ import { DEFAULT_PALETTE, buildSystem, buildUser, parseModelJson, sanitizeReply 
 import { generate, listModels } from "./adapters.js";
 import { createScenes } from "./scenes.js";
 import { installIcons, readIndex } from "./aws-icons.js";
+import { createExporter } from "./export.js";
 import {
   ID_RE, apiKeyFor, getProvider, presets, publicProvider,
   readUserConfig, resolveProviders, writeUserConfig,
@@ -102,6 +103,7 @@ export default function claudeBridge() {
   let env = process.env;
   let scenes;
   let awsDir;
+  let exporter;
   let installing = false;
 
   async function draw(req, res) {
@@ -228,6 +230,7 @@ export default function claudeBridge() {
     configResolved(c) {
       env = { ...process.env, ...loadEnv(c.mode, c.root, "") };
       scenes = createScenes(env.EXCALIDRAW_SCENES_DIR || path.join(c.root, "scenes"));
+      exporter = createExporter(env.EXCALIDRAW_EXPORT_DIR || env.EXCALIDRAW_SCENES_DIR || path.join(c.root, "scenes"));
       awsDir = env.AWS_ICONS_DIR || path.join(c.root, "public", "aws-icons");
     },
     transformIndexHtml() {
@@ -246,6 +249,8 @@ export default function claudeBridge() {
             return send(res, 200, { providers: resolveProviders().map((p) => publicProvider(p, env)), presets });
           }
           if (route === "POST /draw") return await draw(req, res);
+          if (route === "GET /export/info") return send(res, 200, { dir: exporter.dir, titles: exporter.existingTitles() });
+          if (route === "POST /export") return send(res, 200, exporter.exportItem(await readBody(req, SCENE_BODY)));
           if (route === "GET /aws/status") {
             const ix = readIndex(awsDir);
             return send(res, 200, { installed: !!ix, version: ix?.version, services: ix?.services.length || 0, resources: ix?.resources.length || 0 });

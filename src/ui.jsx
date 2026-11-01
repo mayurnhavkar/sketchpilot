@@ -27,6 +27,7 @@ const PATHS = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  download: <path d="M12 3v12M7 10l5 5 5-5M4 21h16" />,
   x: <path d="M6 6l12 12M18 6L6 18" />,
 };
 

@@ -5,7 +5,7 @@ Open-source [Excalidraw](https://github.com/excalidraw/excalidraw) with an inlin
 ```bash
 npm install
 npm run dev        # http://127.0.0.1:5173
-npm test           # 127 unit tests, no extra dependencies
+npm test           # 165 unit tests
 npm run aws:icons  # optional: install the official AWS Architecture Icons (or use settings in the app)
 ```
 
@@ -54,6 +54,28 @@ How it works, and why it is robust:
 
 **Icons are not in this repo.** AWS permits using them in architecture diagrams but says nothing about redistribution, so the app downloads the official package onto your machine (14 MB, from `aws.amazon.com/architecture/icons`) into `public/aws-icons` (git-ignored). Install from settings (sliders icon), or `npm run aws:icons` (`-- --zip path` for a package you already downloaded). The importer looks up the current release itself, only downloads from `d1.awsstatic.com` over https, and skips any SVG with scripts or external references.
 
+## Export to Obsidian (or any Markdown tool)
+
+The download icon next to the scene menu exports what you are looking at: the selected note or AWS diagram, else the only one on the canvas, else the whole scene.
+
+| Button | Writes |
+|---|---|
+| **Save Markdown + image** | `Name.md` (frontmatter with tags, headings, code fences, tables, `[!callout]`s, foldable Q&A flashcards, an AWS spec block) and `Name.svg` (embedded in the note; the scene is inside the SVG, so it can be reopened and edited) |
+| **Save editable drawing** | `Name.excalidraw.md`: your notes on top, the editable drawing below, in the format of Obsidian's Excalidraw plugin |
+| **Copy Markdown** | the Markdown on the clipboard |
+
+Files go to `EXCALIDRAW_EXPORT_DIR` (default: the scenes folder). Point it at an Obsidian vault folder.
+
+- **Links:** other notes already in the folder whose title appears in the text are listed under `## Related` as `[[links]]`.
+- **Your edits are safe:** if a file already exists and differs, the old version is copied to `.export-history/<name>/` (a dot folder, hidden from Obsidian) before it is replaced. An unchanged file is not rewritten. The `created` date is kept.
+- **Escaping:** pipes in table cells are escaped (an unescaped one silently drops the next cell), and `[[` in ordinary text is neutralised so it does not turn into a link.
+- **Scene files** (`.excalidraw`) also open in the Excalidraw plugin directly (compatibility mode).
+
+Tested against the real Obsidian app with the Excalidraw plugin 2.29.0: files open, links and embeds resolve, tags and properties parse, the drawing round-trips through a plugin save with all 172 elements (notes) and all 21 icon images (AWS), and re-exporting does not duplicate anything. Two things to know:
+
+1. The plugin rewrites any text id that is not 8 characters. The drawing export therefore shortens text ids deterministically, so a re-export carries the same ids and never duplicates labels.
+2. Close a drawing in Obsidian before exporting it again. Re-exporting while it is open and has unsaved edits can leave it in a mixed state (some icons as placeholders until it is reopened). Nothing is lost: your version is in `.export-history`.
+
 ## Providers
 
 | Type | Covers |
@@ -88,6 +110,8 @@ server/   prompt + reply validation, provider adapters, scenes, AWS catalogue + 
 src/lib/  pure scene logic (edit ops, ids, style, layout), file readers
 src/lib/aws/  layout, routing, AWS renderer, diagram lookup
 src/lib/notes/  note renderer, syntax highlighter, note lookup
+src/lib/export/  Markdown builders, Obsidian plugin file format, export target
+server/export.js  safe writes into a vault folder
 src/      React UI
 test/     node:test suites
 scenes/   your drawings (git-ignored)

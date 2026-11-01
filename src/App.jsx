@@ -1,17 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  CaptureUpdateAction, Excalidraw, convertToExcalidrawElements, getSceneVersion, restoreElements,
+  CaptureUpdateAction, Excalidraw, convertToExcalidrawElements, exportToSvg, getSceneVersion, restoreElements,
 } from "@excalidraw/excalidraw";
 import { api, drawStream } from "./api.js";
 import Settings from "./Settings.jsx";
 import SceneMenu from "./SceneMenu.jsx";
+import ExportMenu from "./ExportMenu.jsx";
+import { pickExportTarget } from "./lib/export/target.js";
+import { awsToMarkdown, notesToMarkdown, sceneToMarkdown } from "./lib/export/markdown.js";
 import { IconButton, ModelCombo, Select } from "./ui.jsx";
 import { mermaidToSkeleton } from "./lib/mermaid.js";
 import { readImage, readTextFiles } from "./lib/files.js";
 import { safeSceneName } from "./lib/names.js";
 import {
   PALETTES, STYLES, applyDeletes, applyStyle, applyUpdates, bindToExisting, connect, describeScene,
-  freeSpace, namespaceIds, selectedIdsOf, styleById, summarizeResult,
+  freeSpace, migrateArtifacts, namespaceIds, selectedIdsOf, styleById, summarizeResult,
 } from "./lib/scene.js";
 import { GROUP_STYLE, layoutAws } from "./lib/aws/layout.js";
 import { bindArrows, newDiagramPrefix, recenterLabels, renderAws } from "./lib/aws/render.js";
@@ -127,7 +130,7 @@ export default function App() {
   // ---------- scenes: plain .excalidraw files on disk ----------
   const applyLoaded = useCallback((data, { undoable = false } = {}) => {
     if (!excal) return;
-    const els = restoreElements(data.elements || [], null);
+    const els = migrateArtifacts(restoreElements(data.elements || [], null));
     const files = Object.values(data.files || {});
     if (files.length) excal.addFiles(files);
     excal.updateScene({
@@ -452,6 +455,32 @@ export default function App() {
       (mermaidErr ? ` (diagram skipped: ${mermaidErr})` : "");
   }
 
+  // ---------- export (Markdown + image, editable drawing, clipboard) ----------
+  const exportTarget = () => pickExportTarget(excal.getSceneElementsIncludingDeleted(), selectedIdsOf(excal.getAppState()), sceneName, { lastNote: lastNoteRef.current, lastAws: lastAwsRef.current });
+  const describeExport = () => (excal ? exportTarget().label : "");
+
+  async function exportFiles(formats) {
+    const t = exportTarget();
+    const files = excal.getFiles();
+    const background = excal.getAppState().viewBackgroundColor || "#ffffff";
+    let svg;
+    if (formats.svg) {
+      await loadNoteFonts(); // text in the picture must be measured with the real fonts
+      const el = await exportToSvg({ elements: t.elements, appState: { exportBackground: true, viewBackgroundColor: background, exportEmbedScene: true }, files, exportPadding: 24 });
+      svg = new XMLSerializer().serializeToString(el);
+    }
+    return api("/export", {
+      method: "POST",
+      body: { kind: t.kind, name: t.name, spec: t.spec, texts: t.texts, svg, formats, scene: formats.drawing ? { elements: t.elements, files, background } : undefined },
+    });
+  }
+
+  async function copyMarkdown() {
+    const t = exportTarget();
+    const md = t.kind === "notes" ? notesToMarkdown(t.spec, { withFrontmatter: false }) : t.kind === "aws" ? awsToMarkdown(t.spec, { withFrontmatter: false }) : sceneToMarkdown({ title: t.name, texts: t.texts, withFrontmatter: false });
+    await navigator.clipboard.writeText(md);
+  }
+
   const cancel = () => abortRef.current?.abort();
   const sizeKb = Math.round(attached.chars / 1000);
   const cloud = provider && !provider.local;
@@ -463,6 +492,7 @@ export default function App() {
         scenes={scenes} current={sceneName} status={saveStatus}
         onSwitch={(n) => openScene(n).catch((e) => setMsg(`Error: ${e.message}`))}
         onNew={newScene} onLoadVersions={loadVersions} onRestore={restoreVersion}
+        extra={<ExportMenu describe={describeExport} onExport={exportFiles} onCopy={copyMarkdown} />}
       />
 
       <div

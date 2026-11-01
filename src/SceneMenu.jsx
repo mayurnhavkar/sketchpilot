@@ -4,7 +4,7 @@ import { IconButton, Select } from "./ui.jsx";
 const row = { border: "none", background: "transparent", borderRadius: 6, padding: "7px 10px", fontSize: 12, cursor: "pointer", color: "#343a40", display: "block", width: "100%", textAlign: "left" };
 
 // Scenes are plain .excalidraw files in the scenes folder; history is the server's snapshots of earlier saves.
-export default function SceneMenu({ scenes, current, status, onSwitch, onNew, onLoadVersions, onRestore }) {
+export default function SceneMenu({ scenes, current, status, onSwitch, onNew, onLoadVersions, onRestore, extra }) {
   const [versions, setVersions] = useState(null);
 
   async function toggleHistory() {
@@ -26,6 +26,7 @@ export default function SceneMenu({ scenes, current, status, onSwitch, onNew, on
       />
       <IconButton icon="plus" title="New scene" onClick={onNew} />
       <IconButton icon="history" title="Earlier saved versions of this scene" onClick={toggleHistory} />
+      {extra}
       {versions && (
         <div
           style={{
