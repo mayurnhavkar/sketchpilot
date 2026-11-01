@@ -10,6 +10,7 @@ function ProviderCard({ p, onChanged }) {
   const [baseUrl, setBaseUrl] = useState(p.baseUrl);
   const [defaultModel, setDefaultModel] = useState(p.defaultModel);
   const [apiKey, setApiKey] = useState("");
+  const [vision, setVision] = useState(p.vision);
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const isCli = p.type === "cli";
@@ -18,7 +19,7 @@ function ProviderCard({ p, onChanged }) {
     setBusy(true);
     setStatus(null);
     try {
-      await api(`/providers/${p.id}`, { method: "PUT", body: { baseUrl, defaultModel, apiKey, ...extra } });
+      await api(`/providers/${p.id}`, { method: "PUT", body: { baseUrl, defaultModel, apiKey, vision, ...extra } });
       setApiKey("");
       await onChanged();
       setStatus({ ok: true, text: "Saved" });
@@ -33,7 +34,7 @@ function ProviderCard({ p, onChanged }) {
     setBusy(true);
     setStatus({ ok: true, text: "Testing…" });
     try {
-      if (apiKey || baseUrl !== p.baseUrl || defaultModel !== p.defaultModel) await save();
+      if (apiKey || baseUrl !== p.baseUrl || defaultModel !== p.defaultModel || vision !== p.vision) await save();
       const r = await api(`/providers/${p.id}/test`, { method: "POST", body: { model: defaultModel } });
       setStatus(r.ok ? { ok: true, text: `OK · ${r.model} · ${r.ms} ms` } : { ok: false, text: r.error });
     } catch (e) {
@@ -86,6 +87,12 @@ function ProviderCard({ p, onChanged }) {
       )}
       <div style={label}>Default model{isCli ? " (blank = CLI default)" : ""}</div>
       <input style={input} value={defaultModel} onChange={(e) => setDefaultModel(e.target.value)} placeholder="model id" />
+      {!isCli && (
+        <label style={{ ...label, display: "flex", gap: 6, alignItems: "center", marginTop: 10 }}>
+          <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />
+          This model can read images (enables the 🖼 attach button)
+        </label>
+      )}
       <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
         <button style={btn} disabled={busy} onClick={() => save()}>Save</button>
         <button style={btn} disabled={busy} onClick={test}>Test</button>

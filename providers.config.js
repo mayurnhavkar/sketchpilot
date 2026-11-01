@@ -31,6 +31,7 @@ export default {
       baseUrl: "https://api.anthropic.com",
       apiKeyEnv: "ANTHROPIC_API_KEY",
       defaultModel: "claude-sonnet-5-5",
+      vision: true,
     },
     {
       id: "openai",
@@ -39,6 +40,7 @@ export default {
       baseUrl: "https://api.openai.com/v1",
       apiKeyEnv: "OPENAI_API_KEY",
       defaultModel: "",
+      vision: true,
     },
     {
       id: "ollama",

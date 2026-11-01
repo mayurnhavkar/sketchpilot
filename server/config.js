@@ -8,6 +8,7 @@ export const CONFIG_PATH =
   path.join(os.homedir(), ".config", "excalidraw-claude", "providers.json");
 
 export const ID_RE = /^[a-z0-9-]{1,40}$/;
+const LOCAL_URL = /^https?:\/\/(localhost|127\.0\.0\.1)/;
 
 export function readUserConfig() {
   try {
@@ -57,7 +58,10 @@ export function publicProvider(p, env) {
     baseUrl: p.baseUrl || "",
     defaultModel: p.defaultModel || "",
     models: p.models || [],
-    needsKey: p.type === "anthropic" || (p.type === "openai-compat" && !/^https?:\/\/(localhost|127\.0\.0\.1)/.test(p.baseUrl || "")),
+    // true when requests stay on this machine (the Claude CLI talks to Anthropic, so it is not local)
+    local: p.type !== "cli" && LOCAL_URL.test(p.baseUrl || ""),
+    vision: !!p.vision,
+    needsKey: p.type === "anthropic" || (p.type === "openai-compat" && !LOCAL_URL.test(p.baseUrl || "")),
     keySource: ui ? "ui" : fromEnv ? "env" : null,
     capabilities: { effort: !!p.effortFlag, efforts: p.efforts || [] },
   };
