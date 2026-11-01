@@ -76,7 +76,8 @@ export function ModelCombo({ value, onChange, options, placeholder, disabled, ti
   }, [open]);
 
   const q = value.trim().toLowerCase();
-  const shown = filter && q ? options.filter((o) => o.toLowerCase().includes(q)) : options;
+  const unique = [...new Set(options)]; // a provider may list a model twice
+  const shown = filter && q ? unique.filter((o) => o.toLowerCase().includes(q)) : unique;
 
   const choose = (v) => {
     onChange(v);
@@ -86,7 +87,7 @@ export function ModelCombo({ value, onChange, options, placeholder, disabled, ti
   const toggle = () => {
     setOpen((o) => !o);
     setFilter(false);
-    setActive(Math.max(0, options.indexOf(value)));
+    setActive(Math.max(0, unique.indexOf(value)));
   };
   const onKeyDown = (e) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -132,7 +133,7 @@ export function ModelCombo({ value, onChange, options, placeholder, disabled, ti
         <div className={`ec-pop${popup === "down" ? " down" : ""}`} role="listbox">
           {shown.length === 0 ? (
             <div className="ec-empty">
-              {options.length ? "No match. Press Enter to use what you typed." : "This provider did not list its models. Type any model id."}
+              {unique.length ? "No match. Press Enter to use what you typed." : "This provider did not list its models. Type any model id."}
             </div>
           ) : (
             shown.map((o, i) => (
