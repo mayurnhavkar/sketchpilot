@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 _-]{0,59}$/;
+import { validSceneName } from "../src/lib/names.js";
+
+export const NAME_RE = { test: validSceneName }; // kept for callers that used the old regex
 const HISTORY_EVERY_MS = 5 * 60_000;
 const HISTORY_KEEP = 30;
 
@@ -10,7 +12,7 @@ export function createScenes(dir) {
   const file = (name) => path.join(dir, `${name}.excalidraw`);
   const histDir = (name) => path.join(dir, ".history", name);
   const check = (name) => {
-    if (!NAME_RE.test(name)) throw new Error("bad scene name (letters, digits, space, - _ ; max 60)");
+    if (!validSceneName(name)) throw new Error("bad scene name (no / \\ : * ? \" < > |, no leading dot, max 100 characters)");
   };
 
   function list() {
@@ -19,7 +21,7 @@ export function createScenes(dir) {
       .readdirSync(dir)
       .filter((f) => f.endsWith(".excalidraw"))
       .map((f) => ({ name: f.slice(0, -".excalidraw".length), updated: fs.statSync(path.join(dir, f)).mtimeMs }))
-      .filter((s) => NAME_RE.test(s.name))
+      .filter((s) => validSceneName(s.name))
       .sort((a, b) => b.updated - a.updated);
   }
 

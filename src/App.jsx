@@ -8,6 +8,7 @@ import SceneMenu from "./SceneMenu.jsx";
 import { IconButton, ModelCombo, Select } from "./ui.jsx";
 import { mermaidToSkeleton } from "./lib/mermaid.js";
 import { readImage, readTextFiles } from "./lib/files.js";
+import { safeSceneName } from "./lib/names.js";
 import {
   PALETTES, STYLES, applyDeletes, applyStyle, applyUpdates, bindToExisting, connect, describeScene,
   freeSpace, namespaceIds, selectedIdsOf, styleById, summarizeResult,
@@ -220,8 +221,9 @@ export default function App() {
   }, [flush]);
 
   async function newScene() {
-    const name = (window.prompt("Name for the new scene:") || "").trim();
-    if (!name) return;
+    const typed = (window.prompt("Name for the new scene:") || "").trim();
+    if (!typed) return;
+    const name = safeSceneName(typed);
     try {
       await flush();
       await api(`/scenes/${encodeURIComponent(name)}`, { method: "PUT", body: { elements: [] } });

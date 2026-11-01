@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readTextFiles, LIMITS } from "../src/lib/files.js";
+import { readTextFiles, stripDrawingData, LIMITS } from "../src/lib/files.js";
 
 const f = (name, body, path) => {
   const file = new File([body], name);
@@ -30,4 +30,26 @@ test("stops adding files once the total budget is used", async () => {
   assert.equal(r.files.length, 2);
   assert.equal(r.skipped, 1);
   assert.ok(r.chars <= LIMITS.total);
+});
+
+test("attaching an Obsidian vault: notes yes; .obsidian config, .trash and drawing blobs no", async () => {
+  const blob = "N4Ig".repeat(20000);
+  const r = await readTextFiles([
+    f("Linked List.md", "# Linked list", "Vault/Notes/Linked List.md"),
+    f("Linked List.excalidraw.md", `---\nexcalidraw-plugin: parsed\n---\nMy notes above\n\n# Excalidraw Data\n\n## Text Elements\nHead ^abc12345\n\n%%\n## Drawing\n\`\`\`compressed-json\n${blob}\n\`\`\`\n%%\n`, "Vault/Notes/Linked List.excalidraw.md"),
+    f("workspace.json", "{}", "Vault/.obsidian/workspace.json"),
+    f("main.js", "x", "Vault/.obsidian/plugins/p/main.js"),
+    f("Old.md", "deleted", "Vault/.trash/Old.md"),
+  ]);
+  assert.deepEqual(r.files.map((x) => x.name), ["Vault/Notes/Linked List.md", "Vault/Notes/Linked List.excalidraw.md"]);
+  assert.equal(r.skipped, 3);
+  const d = r.files[1].text;
+  assert.match(d, /My notes above/);
+  assert.match(d, /Head \^abc12345/); // text inside the drawing is kept
+  assert.ok(!d.includes("compressed-json") && !d.includes("N4Ig") && r.chars < 500);
+});
+
+test("stripDrawingData leaves ordinary files alone and handles a file with no drawing section", () => {
+  assert.equal(stripDrawingData("a.md", "## Drawing\nnot an excalidraw file"), "## Drawing\nnot an excalidraw file");
+  assert.equal(stripDrawingData("a.excalidraw.md", "just text"), "just text");
 });

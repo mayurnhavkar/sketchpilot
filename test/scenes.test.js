@@ -20,9 +20,9 @@ test("write/read/list round-trips a plain .excalidraw file", () => {
 
 test("names cannot escape the folder", () => {
   const s = createScenes(tmp());
-  for (const bad of ["../x", "a/b", ".hidden", "", "x".repeat(61), "a\\b", "..", "name\0"]) {
-    assert.throws(() => s.write(bad, scene(1)), /bad scene name/, bad);
-    assert.throws(() => s.read(bad), /bad scene name/, bad);
+  for (const bad of ["../x", "a/b", ".hidden", "", "x".repeat(101), "a\\b", "..", "name\0", "a:b", "what?", "star*", "pipe|x", " lead", "trail ", "dot."]) {
+    assert.throws(() => s.write(bad, scene(1)), /bad scene name/, JSON.stringify(bad));
+    assert.throws(() => s.read(bad), /bad scene name/, JSON.stringify(bad));
   }
 });
 
@@ -57,4 +57,24 @@ test("history timestamps are validated", () => {
 
 test("listing an empty or missing folder is fine", () => {
   assert.deepEqual(createScenes(path.join(tmp(), "nope")).list(), []);
+});
+
+test("names people actually give notes are accepted (Obsidian-style): unicode, brackets, plus signs, dates", () => {
+  const s = createScenes(tmp());
+  for (const ok of ["Résumé notes", "Python (basics)", "C++ notes", "2026-11-01 Daily", "Notes_2026", "日本語のメモ", "Q&A #1", "x".repeat(100)]) {
+    s.write(ok, scene(1));
+    assert.equal(s.read(ok).elements.length, 1, ok);
+  }
+  assert.equal(s.list().length, 8);
+});
+
+test("safeSceneName turns any title into an accepted name", async () => {
+  const { safeSceneName, validSceneName } = await import("../src/lib/names.js");
+  assert.equal(safeSceneName("Trading: post-mortem?"), "Trading post-mortem");
+  assert.equal(safeSceneName("  ../../etc/passwd  "), "etc passwd");
+  assert.equal(safeSceneName("..."), "Untitled");
+  assert.equal(safeSceneName(""), "Untitled");
+  assert.equal(safeSceneName(null), "Untitled");
+  assert.equal(safeSceneName("a".repeat(300)).length, 100);
+  for (const t of ["x/y", "a\\b", "name.", ".dot", "p|q", "C++ notes", "Résumé"]) assert.ok(validSceneName(safeSceneName(t)), t);
 });
