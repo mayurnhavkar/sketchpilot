@@ -133,7 +133,7 @@ test("tagSpec stores the spec once; listAwsDiagrams / findAwsDiagram find it aga
 
 test("with several diagrams, the selected one wins, then the last-used, then the newest", () => {
   const one = canvas().els;
-  const two = one.map((e) => ({ ...e, id: e.id.replace("awsabc_", "awsxyz_") }));
+  const two = one.map((e) => ({ ...e, id: e.id.replace("awsabc_", "awsxyz_"), customData: { ...e.customData, artifact: "awsxyz_" } }));
   const els = [...one, ...two];
   assert.equal(findAwsDiagram(els, new Set(["awsabc_n-fn"])).diagram.prefix, "awsabc_");
   assert.equal(findAwsDiagram(els, new Set(), "awsabc_").diagram.prefix, "awsabc_");
@@ -158,4 +158,35 @@ test("auto-detection: AWS words trigger AWS mode, edit verbs trigger iteration",
   for (const t of ["order flow: user, web app, order service", "login sequence", "draw a flowchart"]) assert.ok(!AWS_HINT.test(t), t);
   for (const t of ["add a cache", "Remove the NAT gateway", "now put WAF in front", "replace RDS with Aurora"]) assert.ok(EDIT_VERB.test(t), t);
   assert.ok(!EDIT_VERB.test("a serverless API on AWS"));
+});
+
+// Obsidian's Excalidraw plugin rewrites every text element's id to its own 8-character form when it saves.
+const pluginRewritesTextIds = (els) => {
+  let n = 0;
+  const map = new Map(els.filter((e) => e.type === "text").map((e) => [e.id, `Xy${String(n++).padStart(6, "0")}`]));
+  return els.map((e) => ({ ...e, id: map.get(e.id) || e.id, containerId: e.containerId ? map.get(e.containerId) || e.containerId : e.containerId }));
+};
+
+test("an AWS diagram is still recognised after a plugin rewrites every text id", () => {
+  const { els } = canvas();
+  const rewritten = pluginRewritesTextIds(els);
+  assert.ok(rewritten.some((e) => e.type === "text" && !e.id.startsWith("awsabc_")), "text ids really changed");
+  const [d] = listAwsDiagrams(rewritten);
+  assert.equal(d.prefix, "awsabc_");
+  assert.equal(d.ids.length, els.length, "every element still belongs to the diagram");
+  const textId = rewritten.find((e) => e.type === "text").id;
+  assert.equal(findAwsDiagram(rewritten, new Set([textId])).selected, true, "selecting a label selects the diagram");
+  assert.match(describeScene(rewritten, new Set()).text, /^ {2}aws-diagram "Demo"/);
+});
+
+test("the spec is kept on a non-text element, so a rewritten text id cannot lose it", () => {
+  const { els } = canvas();
+  assert.notEqual(els.find((e) => e.customData?.awsSpec).type, "text");
+});
+
+test("a bound label (random id) belongs to the diagram of its container", () => {
+  const { els } = canvas();
+  const container = els.find((e) => e.type === "rectangle");
+  const label = { id: "labelXYZ", type: "text", containerId: container.id, x: 0, y: 0, width: 5, height: 5, isDeleted: false };
+  assert.equal(describeScene([...els, label], new Set()).text.split("\n").length, 1, "the label is hidden inside the diagram summary");
 });

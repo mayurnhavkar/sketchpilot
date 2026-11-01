@@ -277,3 +277,26 @@ test("describeScene collapses a note to one line; auto-detection spots note requ
   for (const t of ["write me notes on linked list in python", "make a cheat sheet for SQL joins", "study guide for TCP", "summarize this lecture", "flashcards on photosynthesis"]) assert.ok(NOTES_HINT.test(t), t);
   for (const t of ["three-tier app on AWS", "login flow diagram", "draw a flowchart for checkout", "order flow: user, app"]) assert.ok(!NOTES_HINT.test(t), t);
 });
+
+// Obsidian's Excalidraw plugin rewrites every text element's id to its own 8-character form when it saves a file.
+test("a note is still found and edited in place after a plugin rewrites every text id", () => {
+  const els = canvas("ntaaaaaaaaa_");
+  let n = 0;
+  const map = new Map(els.filter((e) => e.type === "text").map((e) => [e.id, `Xy${String(n++).padStart(6, "0")}`]));
+  const rewritten = els.map((e) => ({ ...e, id: map.get(e.id) || e.id }));
+  assert.ok(rewritten.filter((e) => e.type === "text").every((e) => !e.id.startsWith("ntaaaaaaaaa_")));
+  const [note] = listNotes(rewritten);
+  assert.equal(note.prefix, "ntaaaaaaaaa_");
+  assert.equal(note.ids.length, els.length);
+  assert.equal(note.spec.title, "Linked List");
+  const anyText = rewritten.find((e) => e.type === "text").id;
+  assert.equal(findNote(rewritten, new Set([anyText])).selected, true);
+  assert.equal(describeScene(rewritten, new Set()).text.split("\n").length, 1);
+});
+
+test("tagNotes tags every element and keeps the spec on a non-text element", () => {
+  const els = canvas("ntaaaaaaaaa_");
+  assert.ok(els.every((e) => e.customData?.artifact === "ntaaaaaaaaa_"));
+  assert.equal(els.filter((e) => e.customData.notesSpec).length, 1);
+  assert.notEqual(els.find((e) => e.customData.notesSpec).type, "text");
+});

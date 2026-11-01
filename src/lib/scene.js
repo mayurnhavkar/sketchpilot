@@ -1,6 +1,18 @@
 // Pure scene helpers: no DOM, no Excalidraw imports, so they run under `node --test`.
 
 const live = (els) => els.filter((e) => !e.isDeleted);
+
+// Which AWS diagram / note an element belongs to. Ids are not reliable for this: Obsidian's Excalidraw plugin
+// rewrites every text element's id to its own 8-character form. So every element carries the key in customData,
+// the id prefix is only a fallback, and a bound label belongs to its container.
+const ID_KEY = /^(aws[0-9a-z]+_|nt[0-9a-z]{9}_)/;
+export function artifactKey(e, byId = {}, depth = 0) {
+  const direct = e.customData?.artifact || e.id?.match?.(ID_KEY)?.[1];
+  if (direct) return direct;
+  const c = depth < 4 && e.containerId && byId[e.containerId];
+  return c ? artifactKey(c, byId, depth + 1) : null;
+}
+export const withArtifactKey = (elements, key) => elements.map((e) => ({ ...e, customData: { ...(e.customData || {}), artifact: key } }));
 const rid = () => Math.floor(Math.random() * 2 ** 31);
 
 export function bump(el, patch) {
@@ -24,11 +36,11 @@ export function describeScene(elements, selectedIds = new Set(), cap = 150) {
   // an AWS diagram or a note is dozens of elements; summarise each as one line (they are edited through their spec)
   const diagrams = [];
   for (const e of els) {
-    for (const [key, re, kind] of [["awsSpec", /^(aws[0-9a-z]+_)/, "aws-diagram"], ["notesSpec", /^(nt[0-9a-z]{9}_)/, "notes"]]) {
-      if (!e.customData?.[key]) continue;
-      const m = e.id.match(re);
+    for (const [dataKey, kind] of [["awsSpec", "aws-diagram"], ["notesSpec", "notes"]]) {
+      if (!e.customData?.[dataKey]) continue;
+      const prefix = artifactKey(e, byId);
       try {
-        if (m) diagrams.push({ prefix: m[1], spec: JSON.parse(e.customData[key]), kind });
+        if (prefix) diagrams.push({ prefix, spec: JSON.parse(e.customData[dataKey]), kind });
       } catch {}
     }
   }
@@ -41,7 +53,8 @@ export function describeScene(elements, selectedIds = new Set(), cap = 150) {
       lines.push(`  aws-diagram${d.spec.title ? ` "${clip(d.spec.title)}"` : ""}: ${d.spec.nodes.length} services (${names})`);
     }
   }
-  const inDiagram = (e) => diagrams.some((d) => e.id.startsWith(d.prefix));
+  const owned = new Set(diagrams.map((d) => d.prefix));
+  const inDiagram = (e) => owned.has(artifactKey(e, byId));
   const shown = els.filter((e) => !(e.type === "text" && e.containerId && byId[e.containerId]) && !inDiagram(e));
   const ordered = [...shown.filter((e) => selectedIds.has(e.id)), ...shown.filter((e) => !selectedIds.has(e.id))].slice(0, cap);
   for (const e of ordered) {
