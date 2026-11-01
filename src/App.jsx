@@ -11,6 +11,9 @@ import {
   PALETTES, STYLES, applyDeletes, applyStyle, applyUpdates, bindToExisting, connect, describeScene,
   freeSpace, namespaceIds, selectedIdsOf, styleById, summarizeResult,
 } from "./lib/scene.js";
+import { GROUP_STYLE, layoutAws } from "./lib/aws/layout.js";
+import { bindArrows, newDiagramPrefix, recenterLabels, renderAws } from "./lib/aws/render.js";
+import { AWS_HINT, EDIT_VERB, findAwsDiagram, neededIcons, tagSpec } from "./lib/aws/diagram.js";
 
 const LS = {
   scene: "excalidraw-claude:scene-name",
@@ -18,6 +21,7 @@ const LS = {
   provider: "excalidraw-claude:provider",
   effort: "excalidraw-claude:effort",
   style: "excalidraw-claude:style",
+  diagram: "excalidraw-claude:diagram-mode",
 };
 const lsGet = (k, d = "") => {
   try { return localStorage.getItem(k) ?? d; } catch { return d; }
@@ -57,6 +61,8 @@ export default function App() {
   const [model, setModel] = useState("");
   const [effort, setEffort] = usePersisted(LS.effort, "");
   const [styleId, setStyleId] = usePersisted(LS.style, "sketch");
+  const [diagramMode, setDiagramMode] = usePersisted(LS.diagram, "auto");
+  const [awsStatus, setAwsStatus] = useState({ installed: false });
   const [modelList, setModelList] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
   const [excal, setExcal] = useState(null);
@@ -81,6 +87,7 @@ export default function App() {
   const latestRef = useRef(null);
   const savedVersionRef = useRef(-1);
   const saveTimer = useRef(null);
+  const lastAwsRef = useRef(null);
 
   const provider = providers.find((p) => p.id === providerId) || providers[0];
   const style = styleById(styleId);
@@ -96,6 +103,13 @@ export default function App() {
     }
   }, []);
   useEffect(() => { refresh(); }, [refresh]);
+
+  const refreshAws = useCallback(async () => {
+    try {
+      setAwsStatus(await api("/aws/status"));
+    } catch {}
+  }, []);
+  useEffect(() => { refreshAws(); }, [refreshAws]);
 
   useEffect(() => {
     if (!provider) return;
@@ -168,6 +182,7 @@ export default function App() {
     setSceneName(name);
     lsSet(LS.scene, name);
     setThread([]);
+    lastAwsRef.current = null;
     readyRef.current = true;
   }, [applyLoaded, flush]);
 
@@ -276,10 +291,19 @@ export default function App() {
     abortRef.current = ac;
     try {
       const all = excal.getSceneElementsIncludingDeleted();
-      const { text: context, knownIds } = describeScene(all, selectedIdsOf(excal.getAppState()));
+      const sel = selectedIdsOf(excal.getAppState());
+      const { text: context, knownIds } = describeScene(all, sel);
+
+      // AWS architecture mode: explicit, or auto when the request (or the selection) is about AWS
+      const { diagram, selected } = findAwsDiagram(all, sel, lastAwsRef.current);
+      const wantsAws = diagramMode === "aws" || (diagramMode === "auto" && awsStatus.installed && (AWS_HINT.test(text) || selected));
+      if (wantsAws && !awsStatus.installed) throw new Error("AWS icons are not installed yet: open ⚙ settings and install them.");
+      const iterate = wantsAws && diagram && (selected || EDIT_VERB.test(text));
+      const awsCtx = { diagram: iterate ? diagram : null };
       const done = await drawStream(
         {
           prompt: text, context, knownIds, history: thread,
+          mode: wantsAws ? "aws" : "general", awsSpec: iterate ? JSON.stringify(diagram.spec) : "",
           providerId: provider.id, model, effort: provider.capabilities.effort ? effort : "",
           files: attached.files, images: images.map(({ mime, data }) => ({ mime, data })),
           palette: PALETTES[style.palette].fills,
@@ -292,7 +316,7 @@ export default function App() {
           },
         },
       );
-      const note = await applyReply(done.reply, all, text);
+      const note = await applyReply(done.reply, all, text, awsCtx);
       const m = done.meta;
       const tok = m.usage ? ` · ${m.usage.in ?? "?"}→${m.usage.out ?? "?"} tok` : "";
       setMsg(`${note} · ${m.model} · ${(m.ms / 1000).toFixed(1)}s${tok}${m.attempts > 1 ? ` · ${m.attempts} tries` : ""}`);
@@ -306,9 +330,33 @@ export default function App() {
     }
   }
 
-  async function applyReply(reply, all, promptText) {
+  // layout + render an AWS spec (icons are fetched from the git-ignored /aws-icons folder)
+  async function renderAwsReply(spec, all, diagram) {
+    const icons = new Map();
+    await Promise.all(
+      neededIcons(spec, (k) => GROUP_STYLE[k]?.icon).map(async (f) => {
+        try {
+          const r = await fetch(`/aws-icons/${f}`);
+          if (r.ok) icons.set(f, await r.text());
+        } catch {}
+      }),
+    );
+    const layout = layoutAws(spec, { measure: (t) => measureText(t, "14px Helvetica, Arial, sans-serif") });
+    const origin = diagram ? diagram.origin : (({ ox, oy }) => ({ x: ox, y: oy }))(freeSpace(all));
+    const prefix = newDiagramPrefix();
+    return { prefix, ...renderAws(layout, { spec, prefix, origin, icons }) };
+  }
+
+  async function applyReply(reply, all, promptText, awsCtx = { diagram: null }) {
     // 1. edits to what is already there
     let elements = applyDeletes(applyUpdates(all, reply.update, measureText), reply.delete);
+
+    // 1b. an AWS architecture: replaces the diagram being edited, or goes into free space
+    let awsOut = null;
+    if (reply.aws) {
+      awsOut = await renderAwsReply(reply.aws, all, awsCtx.diagram);
+      if (awsCtx.diagram) elements = applyDeletes(elements, awsCtx.diagram.ids);
+    }
 
     // 2. new content: Mermaid (auto-laid-out) and/or freeform shapes
     const prefix = `n${Date.now().toString(36).slice(-4)}_`;
@@ -344,6 +392,13 @@ export default function App() {
       if (bound.patched.size) elements = elements.map((e) => bound.patched.get(e.id) || e);
     }
     if (Object.keys(files).length) excal.addFiles(Object.values(files));
+    if (awsOut) {
+      excal.addFiles(Object.values(awsOut.files));
+      let c = convertToExcalidrawElements(awsOut.skeleton, { regenerateIds: false });
+      c = tagSpec(bindArrows(recenterLabels(c, awsOut.centers), awsOut.links), awsOut.prefix, reply.aws);
+      created = [...created, ...c];
+      lastAwsRef.current = awsOut.prefix;
+    }
 
     // 3. one undoable step for the whole reply
     excal.updateScene({ elements: [...elements, ...created], captureUpdate: CaptureUpdateAction.IMMEDIATELY });
@@ -351,10 +406,16 @@ export default function App() {
     if (created.length) setTimeout(() => excal.scrollToContent(created, { fitToContent: true, maxZoom: 1, animate: true }), 60);
 
     const labels = created.filter((e) => e.type === "text").map((e) => e.text);
-    const result = summarizeResult(reply, labels);
+    const result = awsOut
+      ? `${awsCtx.diagram ? "updated" : "drew"} an AWS diagram with ${reply.aws.nodes.length} services: ${reply.aws.nodes.map((n) => n.label).slice(0, 10).join(", ")}`
+      : summarizeResult(reply, labels);
     setThread((t) => [...t, { prompt: promptText, result }].slice(-6));
     const nothing = !created.length && !reply.update.length && !reply.delete.length;
     if (mermaidErr && nothing) throw new Error(`The diagram had a syntax error (${mermaidErr}). Try again or rephrase.`);
+    if (awsOut) {
+      const generic = reply.aws.nodes.filter((n) => !n.file).length;
+      return `${awsCtx.diagram ? "Updated" : "Drew"} AWS diagram · ${reply.aws.nodes.length} services${generic ? ` (${generic} without an icon)` : ""}`;
+    }
     return `${created.length ? `Added ${created.length}` : ""}${reply.update.length ? ` Updated ${reply.update.length}` : ""}${reply.delete.length ? ` Deleted ${reply.delete.length}` : ""}`.trim() +
       (mermaidErr ? ` (diagram skipped: ${mermaidErr})` : "");
   }
@@ -422,7 +483,12 @@ export default function App() {
               {provider.capabilities.efforts.map((v) => <option key={v} value={v}>{v[0].toUpperCase() + v.slice(1)}</option>)}
             </select>
           )}
-          <select value={styleId} disabled={busy} onChange={(e) => setStyleId(e.target.value)} style={ctl} title="Style for new shapes">
+          <select value={diagramMode} disabled={busy} onChange={(e) => setDiagramMode(e.target.value)} style={ctl} title="Diagram type: Auto switches to AWS architecture when you mention AWS services">
+            <option value="auto">Auto</option>
+            <option value="general">General</option>
+            <option value="aws">{awsStatus.installed ? "AWS architecture" : "AWS (install icons in ⚙)"}</option>
+          </select>
+          <select value={styleId} disabled={busy} onChange={(e) => setStyleId(e.target.value)} style={ctl} title="Style for new shapes (AWS diagrams use the official style)">
             {STYLES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <span style={{ width: 1, height: 20, background: "#dee2e6" }} />
@@ -474,7 +540,9 @@ export default function App() {
           {msg}
         </div>
       )}
-      {showSettings && <Settings providers={providers} presets={presets} onChanged={refresh} onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <Settings providers={providers} presets={presets} onChanged={refresh} onClose={() => setShowSettings(false)} awsStatus={awsStatus} onAwsChanged={refreshAws} />
+      )}
     </div>
   );
 }

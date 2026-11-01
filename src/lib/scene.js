@@ -21,7 +21,21 @@ export function describeScene(elements, selectedIds = new Set(), cap = 150) {
   const lines = [];
   const knownIds = [];
   const clip = (s) => s.slice(0, 40).replace(/\n/g, " ");
-  const shown = els.filter((e) => !(e.type === "text" && e.containerId && byId[e.containerId]));
+  // an AWS diagram is dozens of elements; summarise it as one line (edited through its spec instead)
+  const diagrams = [];
+  for (const e of els) {
+    if (!e.customData?.awsSpec) continue;
+    const m = e.id.match(/^(aws[0-9a-z]+_)/);
+    try {
+      if (m) diagrams.push({ prefix: m[1], spec: JSON.parse(e.customData.awsSpec) });
+    } catch {}
+  }
+  for (const d of diagrams) {
+    const names = d.spec.nodes.map((n) => n.label).slice(0, 12).join(", ");
+    lines.push(`  aws-diagram${d.spec.title ? ` "${clip(d.spec.title)}"` : ""}: ${d.spec.nodes.length} services (${names})`);
+  }
+  const inDiagram = (e) => diagrams.some((d) => e.id.startsWith(d.prefix));
+  const shown = els.filter((e) => !(e.type === "text" && e.containerId && byId[e.containerId]) && !inDiagram(e));
   const ordered = [...shown.filter((e) => selectedIds.has(e.id)), ...shown.filter((e) => !selectedIds.has(e.id))].slice(0, cap);
   for (const e of ordered) {
     const mark = selectedIds.has(e.id) ? ">" : " ";

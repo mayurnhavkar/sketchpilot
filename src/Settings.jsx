@@ -104,7 +104,46 @@ function ProviderCard({ p, onChanged }) {
   );
 }
 
-export default function Settings({ providers, presets, onClose, onChanged }) {
+function AwsIcons({ status, onChanged }) {
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState(null);
+
+  async function install() {
+    setBusy(true);
+    setNote({ ok: true, text: "Downloading the official AWS Architecture Icons (14 MB)…" });
+    try {
+      const r = await api("/aws/install", { method: "POST", body: {} });
+      await onChanged();
+      setNote({ ok: true, text: `Installed ${r.services} services, ${r.resources} resources, ${r.groups} groups (release ${r.version})` });
+    } catch (e) {
+      setNote({ ok: false, text: e.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={box}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <b style={{ fontSize: 14 }}>AWS architecture icons</b>
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: 12, color: status.installed ? "#2f9e44" : "#e03131" }}>
+          {status.installed ? `installed · ${status.services} services · release ${status.version}` : "not installed"}
+        </span>
+      </div>
+      <div style={{ fontSize: 12, color: "#868e96", marginTop: 6 }}>
+        Official icons from aws.amazon.com/architecture/icons, downloaded to this machine only (public/aws-icons, git-ignored; AWS permits use in
+        architecture diagrams). Enables professional AWS diagrams with groups, subnets and numbered flows.
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+        <button style={btn} disabled={busy} onClick={install}>{status.installed ? "Update icons" : "Download & install (14 MB)"}</button>
+        <span style={{ fontSize: 12, color: note?.ok ? "#2f9e44" : "#c92a2a" }}>{note?.text}</span>
+      </div>
+    </div>
+  );
+}
+
+export default function Settings({ providers, presets, onClose, onChanged, awsStatus = { installed: false }, onAwsChanged = () => {} }) {
   const [preset, setPreset] = useState("");
   const [err, setErr] = useState("");
 
@@ -137,6 +176,7 @@ export default function Settings({ providers, presets, onClose, onChanged }) {
           <b style={{ fontSize: 17, flex: 1 }}>Model providers</b>
           <button style={btn} onClick={onClose}>Close</button>
         </div>
+        <AwsIcons status={awsStatus} onChanged={onAwsChanged} />
         {providers.map((p) => (
           <ProviderCard key={p.id} p={p} onChanged={onChanged} />
         ))}

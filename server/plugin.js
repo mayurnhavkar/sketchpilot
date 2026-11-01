@@ -4,6 +4,7 @@ import { loadEnv } from "vite";
 import { DEFAULT_PALETTE, buildSystem, buildUser, parseModelJson, sanitizeReply } from "./prompt.js";
 import { generate, listModels } from "./adapters.js";
 import { createScenes } from "./scenes.js";
+import { installIcons, readIndex } from "./aws-icons.js";
 import {
   ID_RE, apiKeyFor, getProvider, presets, publicProvider,
   readUserConfig, resolveProviders, writeUserConfig,
@@ -100,6 +101,8 @@ export default function claudeBridge() {
   const token = crypto.randomBytes(24).toString("hex");
   let env = process.env;
   let scenes;
+  let awsDir;
+  let installing = false;
 
   async function draw(req, res) {
     const p = await readBody(req, DRAW_BODY);
@@ -113,8 +116,13 @@ export default function claudeBridge() {
     const effort = provider.efforts?.includes(p.effort) ? p.effort : "";
     const key = apiKeyFor(provider, env);
     const knownIds = (Array.isArray(p.knownIds) ? p.knownIds : []).filter((i) => typeof i === "string").slice(0, 3000);
-    const system = buildSystem({ palette: cleanPalette(p.palette) });
-    let user = buildUser({ prompt: p.prompt, context: p.context, history: Array.isArray(p.history) ? p.history : [], files: cleanFiles(p.files) });
+    const awsIndex = p.mode === "aws" ? readIndex(awsDir) : null;
+    if (p.mode === "aws" && !awsIndex) return send(res, 400, { error: "AWS icons are not installed yet (open ⚙ settings and install them)." });
+    const system = buildSystem({ palette: cleanPalette(p.palette), awsIndex });
+    let user = buildUser({
+      prompt: p.prompt, context: p.context, history: Array.isArray(p.history) ? p.history : [], files: cleanFiles(p.files),
+      awsSpec: awsIndex && typeof p.awsSpec === "string" ? p.awsSpec : "",
+    });
 
     const ac = new AbortController();
     res.on("close", () => { if (!res.writableEnded) ac.abort(); });
@@ -142,7 +150,7 @@ export default function claudeBridge() {
         return res.end();
       }
       try {
-        const reply = sanitizeReply(parseModelJson(out.text), knownIds);
+        const reply = sanitizeReply(parseModelJson(out.text), knownIds, { awsIndex });
         emit({ t: "done", reply, meta: { provider: provider.id, model: model || "(default)", ms: Date.now() - t0, attempts: attempt, usage: out.usage } });
         return res.end();
       } catch (e) {
@@ -218,6 +226,7 @@ export default function claudeBridge() {
     configResolved(c) {
       env = { ...process.env, ...loadEnv(c.mode, c.root, "") };
       scenes = createScenes(env.EXCALIDRAW_SCENES_DIR || path.join(c.root, "scenes"));
+      awsDir = env.AWS_ICONS_DIR || path.join(c.root, "public", "aws-icons");
     },
     transformIndexHtml() {
       return [{ tag: "meta", attrs: { name: "ec-token", content: token }, injectTo: "head" }];
@@ -235,6 +244,21 @@ export default function claudeBridge() {
             return send(res, 200, { providers: resolveProviders().map((p) => publicProvider(p, env)), presets });
           }
           if (route === "POST /draw") return await draw(req, res);
+          if (route === "GET /aws/status") {
+            const ix = readIndex(awsDir);
+            return send(res, 200, { installed: !!ix, version: ix?.version, services: ix?.services.length || 0, resources: ix?.resources.length || 0 });
+          }
+          if (route === "POST /aws/install") {
+            if (installing) return send(res, 409, { error: "an install is already running" });
+            installing = true;
+            try {
+              return send(res, 200, await installIcons({ outDir: awsDir }));
+            } catch (e) {
+              return send(res, 502, { error: e.message });
+            } finally {
+              installing = false;
+            }
+          }
           if (await sceneRoutes(req, res, route, url)) return;
           if (id && !ID_RE.test(id)) return send(res, 400, { error: "bad provider id" });
 
