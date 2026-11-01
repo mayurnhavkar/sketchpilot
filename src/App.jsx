@@ -5,6 +5,7 @@ import {
 import { api, drawStream } from "./api.js";
 import Settings from "./Settings.jsx";
 import SceneMenu from "./SceneMenu.jsx";
+import { IconButton, ModelCombo, Select } from "./ui.jsx";
 import { mermaidToSkeleton } from "./lib/mermaid.js";
 import { readImage, readTextFiles } from "./lib/files.js";
 import {
@@ -35,12 +36,6 @@ function usePersisted(key, init) {
   useEffect(() => lsSet(key, v), [key, v]);
   return [v, setV];
 }
-
-const ctl = {
-  border: "1px solid #ced4da", borderRadius: 8, padding: "6px 8px", fontSize: 13,
-  background: "#fff", color: "#343a40", cursor: "pointer", maxWidth: 150,
-};
-const iconBtn = { ...ctl, padding: "6px 9px" };
 
 // pixel width of a string in a CSS font, for wrapping edited labels
 let _ctx;
@@ -264,7 +259,7 @@ export default function App() {
   }
   async function addImages(list) {
     if (!provider?.vision) {
-      setMsg("This provider isn't marked as vision-capable (tick it in ⚙ settings, or pick another provider).");
+      setMsg("This provider isn't marked as vision-capable (tick it in provider settings, the sliders icon, or pick another provider).");
       return;
     }
     const imgs = [];
@@ -297,7 +292,7 @@ export default function App() {
       // AWS architecture mode: explicit, or auto when the request (or the selection) is about AWS
       const { diagram, selected } = findAwsDiagram(all, sel, lastAwsRef.current);
       const wantsAws = diagramMode === "aws" || (diagramMode === "auto" && awsStatus.installed && (AWS_HINT.test(text) || selected));
-      if (wantsAws && !awsStatus.installed) throw new Error("AWS icons are not installed yet: open ⚙ settings and install them.");
+      if (wantsAws && !awsStatus.installed) throw new Error("AWS icons are not installed yet: open provider settings (the sliders icon) and install them.");
       const iterate = wantsAws && diagram && (selected || EDIT_VERB.test(text));
       const awsCtx = { diagram: iterate ? diagram : null };
       const done = await drawStream(
@@ -468,37 +463,40 @@ export default function App() {
         </div>
 
         <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-          <select value={provider?.id || ""} disabled={busy} onChange={(e) => setProviderId(e.target.value)} style={ctl} title="Provider">
-            {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <input
-            list="model-list" value={model} disabled={busy} onChange={(e) => pickModel(e.target.value)}
-            placeholder={provider?.type === "cli" ? "default model" : "model id"}
-            title="Model (type any id, or pick from the list)" style={{ ...ctl, width: 150, cursor: "text" }}
+          <Select
+            value={provider?.id || ""} disabled={busy} onChange={setProviderId} title="Provider"
+            options={providers.map((p) => ({ value: p.id, label: p.name }))}
           />
-          <datalist id="model-list">{modelList.map((m) => <option key={m} value={m} />)}</datalist>
+          <ModelCombo
+            value={model} onChange={pickModel} options={modelList} disabled={busy}
+            placeholder={provider?.type === "cli" ? "default model" : "model id"} title="Model: pick from the list or type any id"
+          />
           {provider?.capabilities.effort && (
-            <select value={effort} disabled={busy} onChange={(e) => setEffort(e.target.value)} style={ctl} title="Effort level">
-              <option value="">Default effort</option>
-              {provider.capabilities.efforts.map((v) => <option key={v} value={v}>{v[0].toUpperCase() + v.slice(1)}</option>)}
-            </select>
+            <Select
+              value={effort} disabled={busy} onChange={setEffort} title="Effort level"
+              options={[{ value: "", label: "Default effort" }, ...provider.capabilities.efforts.map((v) => ({ value: v, label: v[0].toUpperCase() + v.slice(1) }))]}
+            />
           )}
-          <select value={diagramMode} disabled={busy} onChange={(e) => setDiagramMode(e.target.value)} style={ctl} title="Diagram type: Auto switches to AWS architecture when you mention AWS services">
-            <option value="auto">Auto</option>
-            <option value="general">General</option>
-            <option value="aws">{awsStatus.installed ? "AWS architecture" : "AWS (install icons in ⚙)"}</option>
-          </select>
-          <select value={styleId} disabled={busy} onChange={(e) => setStyleId(e.target.value)} style={ctl} title="Style for new shapes (AWS diagrams use the official style)">
-            {STYLES.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </select>
-          <span style={{ width: 1, height: 20, background: "#dee2e6" }} />
-          <button style={iconBtn} title="Attach files as context" onClick={() => fileRef.current?.click()}>📎</button>
-          <button style={iconBtn} title="Attach a folder as context" onClick={() => folderRef.current?.click()}>📁</button>
-          {provider?.vision && <button style={iconBtn} title="Attach an image (or paste one)" onClick={() => imageRef.current?.click()}>🖼</button>}
-          <button style={iconBtn} onClick={() => setShowSettings(true)} title="Provider settings">⚙</button>
+          <Select
+            value={diagramMode} disabled={busy} onChange={setDiagramMode} title="Diagram type: Auto switches to AWS architecture when you mention AWS services"
+            options={[
+              { value: "auto", label: "Auto" },
+              { value: "general", label: "General" },
+              { value: "aws", label: awsStatus.installed ? "AWS architecture" : "AWS (install icons in settings)" },
+            ]}
+          />
+          <Select
+            value={styleId} disabled={busy} onChange={setStyleId} title="Style for new shapes (AWS diagrams use the official style)"
+            options={STYLES.map((s) => ({ value: s.id, label: s.name }))}
+          />
+          <span style={{ width: 1, height: 20, background: "#dee2e6", margin: "0 2px" }} />
+          <IconButton icon="paperclip" title="Attach files as context" onClick={() => fileRef.current?.click()} />
+          <IconButton icon="folder" title="Attach a folder as context" onClick={() => folderRef.current?.click()} />
+          {provider?.vision && <IconButton icon="image" title="Attach an image (or paste one)" onClick={() => imageRef.current?.click()} />}
+          <IconButton icon="sliders" title="Provider settings" onClick={() => setShowSettings(true)} />
           <span style={{ flex: 1 }} />
           {thread.length > 0 && (
-            <button style={{ ...iconBtn, fontSize: 12, color: "#868e96" }} onClick={() => setThread([])} title="Forget earlier requests in this session">
+            <button type="button" className="ec-ctl ec-textbtn" onClick={() => setThread([])} title="Forget earlier requests in this session">
               {thread.length} earlier ✕
             </button>
           )}

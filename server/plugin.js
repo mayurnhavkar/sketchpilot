@@ -117,7 +117,7 @@ export default function claudeBridge() {
     const key = apiKeyFor(provider, env);
     const knownIds = (Array.isArray(p.knownIds) ? p.knownIds : []).filter((i) => typeof i === "string").slice(0, 3000);
     const awsIndex = p.mode === "aws" ? readIndex(awsDir) : null;
-    if (p.mode === "aws" && !awsIndex) return send(res, 400, { error: "AWS icons are not installed yet (open ⚙ settings and install them)." });
+    if (p.mode === "aws" && !awsIndex) return send(res, 400, { error: "AWS icons are not installed yet (open provider settings (the sliders icon) and install them)." });
     const system = buildSystem({ palette: cleanPalette(p.palette), awsIndex });
     let user = buildUser({
       prompt: p.prompt, context: p.context, history: Array.isArray(p.history) ? p.history : [], files: cleanFiles(p.files),

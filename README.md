@@ -6,7 +6,7 @@ Open-source [Excalidraw](https://github.com/excalidraw/excalidraw) with an inlin
 npm install
 npm run dev        # http://127.0.0.1:5173
 npm test           # 103 unit tests, no extra dependencies
-npm run aws:icons  # optional: install the official AWS Architecture Icons (or use ⚙ in the app)
+npm run aws:icons  # optional: install the official AWS Architecture Icons (or use settings in the app)
 ```
 
 ## What it does
@@ -37,7 +37,7 @@ How it works, and why it is robust:
 4. **Official look** (`src/lib/aws/render.js`): AWS Architecture Icons (304 services, 466 resources, 13 group icons), group colours read from AWS's own group icons, flat style, numbered step badges, arrows bound to icons so they follow when you move one.
 5. **Validation** (`server/aws.js`): unknown services fall back to a labelled generic box, bad parents/cycles/edges are dropped, common names (`s3`, `alb`, `kms`, ...) resolve to the right icon.
 
-**Icons are not in this repo.** AWS permits using them in architecture diagrams but says nothing about redistribution, so the app downloads the official package onto your machine (14 MB, from `aws.amazon.com/architecture/icons`) into `public/aws-icons` (git-ignored). Install from ⚙ settings, or `npm run aws:icons` (`-- --zip path` for a package you already downloaded). The importer looks up the current release itself, only downloads from `d1.awsstatic.com` over https, and skips any SVG with scripts or external references.
+**Icons are not in this repo.** AWS permits using them in architecture diagrams but says nothing about redistribution, so the app downloads the official package onto your machine (14 MB, from `aws.amazon.com/architecture/icons`) into `public/aws-icons` (git-ignored). Install from settings (sliders icon), or `npm run aws:icons` (`-- --zip path` for a package you already downloaded). The importer looks up the current release itself, only downloads from `d1.awsstatic.com` over https, and skips any SVG with scripts or external references.
 
 ## Providers
 
@@ -50,7 +50,7 @@ How it works, and why it is robust:
 Configuration layers, later wins:
 
 1. `providers.config.js` (code defaults)
-2. `~/.config/excalidraw-claude/providers.json` (written by the ⚙ Settings panel; owner-only file, holds UI-entered keys)
+2. `~/.config/excalidraw-claude/providers.json` (written by the Settings panel (sliders icon); owner-only file, holds UI-entered keys)
 3. `.env` / environment (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, see `.env.example`), used when no key was saved in the UI
 
 Keys never go back to the browser. CLI commands can only be defined in `providers.config.js` or by hand-editing the config file, never from the UI.
@@ -59,7 +59,7 @@ Keys never go back to the browser. CLI commands can only be defined in `provider
 
 ```bash
 ollama pull qwen2.5:7b        # text
-ollama pull qwen2.5vl:3b      # vision (then tick "can read images" for Ollama in ⚙)
+ollama pull qwen2.5vl:3b      # vision (then tick "can read images" for Ollama in the settings)
 ```
 
 ## Security

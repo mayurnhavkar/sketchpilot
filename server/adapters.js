@@ -147,5 +147,7 @@ export async function listModels({ provider, key, signal }) {
   const res = await fetch(url, { headers, signal: AbortSignal.any([signal, AbortSignal.timeout(10_000)].filter(Boolean)) });
   if (!res.ok) throw await failFrom(res);
   const j = await res.json();
-  return (j.data || j.models || []).map((m) => m.id || m.name).filter(Boolean).sort();
+  // Ollama can list a model twice and also exposes its internal runner ids ("llamacpp:<hash>"): neither is selectable
+  const ids = (j.data || j.models || []).map((m) => m.id || m.name).filter((id) => id && !/^llamacpp:[0-9a-f]{16,}$/i.test(id));
+  return [...new Set(ids)].sort();
 }

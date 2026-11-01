@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { generate } from "../server/adapters.js";
+import { generate, listModels } from "../server/adapters.js";
 
 const realFetch = globalThis.fetch;
 let calls;
@@ -117,4 +117,16 @@ test("cli: images are refused, non-zero exit reports stderr, abort cancels", asy
 
 test("unknown provider type is rejected", () => {
   assert.throws(() => generate({ provider: { type: "nope" } }), /unknown provider type/);
+});
+
+test("listModels: sorted, de-duplicated, without Ollama runner ids; cli lists its configured models", async () => {
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, headers: init.headers });
+    return new Response(JSON.stringify({ data: [{ id: "qwen2.5vl:3b" }, { id: "llamacpp:79d4979787523c92629bc043c0584a5132d6758e40b429586203a6b1094cb6f8" }, { id: "qwen2.5:7b" }, { id: "qwen2.5vl:3b" }] }), { status: 200 });
+  };
+  assert.deepEqual(await listModels({ provider: openai, key: "" }), ["qwen2.5:7b", "qwen2.5vl:3b"]);
+  assert.equal(calls[0].url, "http://localhost:11434/v1/models");
+  assert.deepEqual(await listModels({ provider: { type: "cli", models: ["opus", "sonnet"] } }), ["opus", "sonnet"]);
+  globalThis.fetch = async () => new Response('{"error":{"message":"bad key"}}', { status: 401 });
+  await assert.rejects(listModels({ provider: { type: "anthropic", baseUrl: "http://x" }, key: "k" }), /401 bad key/);
 });

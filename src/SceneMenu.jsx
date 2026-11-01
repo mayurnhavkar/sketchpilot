@@ -1,6 +1,7 @@
 import React, { useState } from "react";
+import { IconButton, Select } from "./ui.jsx";
 
-const btn = { border: "1px solid #ced4da", borderRadius: 8, padding: "5px 9px", fontSize: 13, background: "#fff", cursor: "pointer", color: "#343a40" };
+const row = { border: "none", background: "transparent", borderRadius: 6, padding: "7px 10px", fontSize: 12, cursor: "pointer", color: "#343a40", display: "block", width: "100%", textAlign: "left" };
 
 // Scenes are plain .excalidraw files in the scenes folder; history is the server's snapshots of earlier saves.
 export default function SceneMenu({ scenes, current, status, onSwitch, onNew, onLoadVersions, onRestore }) {
@@ -19,15 +20,16 @@ export default function SceneMenu({ scenes, current, status, onSwitch, onNew, on
       }}
     >
       {status && <span style={{ fontSize: 12, color: status.startsWith("Save failed") ? "#c92a2a" : "#868e96" }}>{status}</span>}
-      <select value={current} onChange={(e) => onSwitch(e.target.value)} style={{ ...btn, maxWidth: 160 }} title="Scene (saved as .excalidraw files)">
-        {scenes.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
-      </select>
-      <button style={btn} onClick={onNew} title="New scene">＋</button>
-      <button style={btn} onClick={toggleHistory} title="Earlier saved versions of this scene">🕘</button>
+      <Select
+        value={current} onChange={onSwitch} title="Scene (saved as .excalidraw files)" style={{ maxWidth: 190 }}
+        options={scenes.map((x) => ({ value: x.name, label: x.name }))}
+      />
+      <IconButton icon="plus" title="New scene" onClick={onNew} />
+      <IconButton icon="history" title="Earlier saved versions of this scene" onClick={toggleHistory} />
       {versions && (
         <div
           style={{
-            position: "absolute", top: 36, right: 0, background: "#fff", border: "1px solid #ced4da", borderRadius: 10,
+            position: "absolute", top: 40, right: 0, background: "#fff", border: "1px solid #ced4da", borderRadius: 10,
             boxShadow: "0 4px 16px rgba(0,0,0,.15)", padding: 6, width: 230, maxHeight: 280, overflow: "auto",
           }}
         >
@@ -35,7 +37,7 @@ export default function SceneMenu({ scenes, current, status, onSwitch, onNew, on
           {versions.map((ts) => (
             <button
               key={ts}
-              style={{ ...btn, display: "block", width: "100%", textAlign: "left", border: "none", fontSize: 12 }}
+              style={row}
               onClick={async () => {
                 await onRestore(ts);
                 setVersions(null);

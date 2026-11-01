@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { api } from "./api.js";
+import { ModelCombo, Select } from "./ui.jsx";
 
 const box = { border: "1px solid #dee2e6", borderRadius: 10, padding: 12, marginBottom: 10 };
 const input = { border: "1px solid #ced4da", borderRadius: 6, padding: "6px 8px", fontSize: 13, width: "100%", boxSizing: "border-box" };
@@ -11,6 +12,14 @@ function ProviderCard({ p, onChanged }) {
   const [defaultModel, setDefaultModel] = useState(p.defaultModel);
   const [apiKey, setApiKey] = useState("");
   const [vision, setVision] = useState(p.vision);
+  const [models, setModels] = useState(p.models);
+
+  // the provider's own model list (Ollama's installed models, an API's catalogue, the CLI's aliases)
+  useEffect(() => {
+    let live = true;
+    api(`/providers/${p.id}/models`).then((d) => live && setModels(d.models)).catch(() => {});
+    return () => { live = false; };
+  }, [p.id, p.baseUrl, p.keySource]);
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const isCli = p.type === "cli";
@@ -86,11 +95,11 @@ function ProviderCard({ p, onChanged }) {
         </>
       )}
       <div style={label}>Default model{isCli ? " (blank = CLI default)" : ""}</div>
-      <input style={input} value={defaultModel} onChange={(e) => setDefaultModel(e.target.value)} placeholder="model id" />
+      <ModelCombo block popup="down" value={defaultModel} onChange={setDefaultModel} options={models} placeholder="model id" title="Default model: pick from the list or type any id" />
       {!isCli && (
         <label style={{ ...label, display: "flex", gap: 6, alignItems: "center", marginTop: 10 }}>
           <input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} />
-          This model can read images (enables the 🖼 attach button)
+          This model can read images (shows the image attach button)
         </label>
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
@@ -181,10 +190,10 @@ export default function Settings({ providers, presets, onClose, onChanged, awsSt
           <ProviderCard key={p.id} p={p} onChanged={onChanged} />
         ))}
         <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-          <select style={{ ...input, width: "auto", flex: 1 }} value={preset} onChange={(e) => setPreset(e.target.value)}>
-            <option value="">Add provider…</option>
-            {presets.map((x) => <option key={x.name} value={x.name}>{x.name}</option>)}
-          </select>
+          <Select
+            value={preset} onChange={setPreset} title="Add a provider" style={{ flex: 1 }}
+            options={[{ value: "", label: "Add provider…" }, ...presets.map((x) => ({ value: x.name, label: x.name }))]}
+          />
           <button style={btn} disabled={!preset} onClick={add}>Add</button>
         </div>
         {err && <div style={{ color: "#c92a2a", fontSize: 12, marginTop: 6 }}>{err}</div>}
