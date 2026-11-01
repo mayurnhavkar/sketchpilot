@@ -15,6 +15,8 @@ import {
 import { GROUP_STYLE, layoutAws } from "./lib/aws/layout.js";
 import { bindArrows, newDiagramPrefix, recenterLabels, renderAws } from "./lib/aws/render.js";
 import { AWS_HINT, EDIT_VERB, findAwsDiagram, neededIcons, tagSpec } from "./lib/aws/diagram.js";
+import { fixMonospace, loadNoteFonts, newNotesPrefix, renderNotes } from "./lib/notes/render.js";
+import { NOTES_HINT, findNote, tagNotes } from "./lib/notes/note.js";
 
 const LS = {
   scene: "excalidraw-claude:scene-name",
@@ -83,6 +85,7 @@ export default function App() {
   const savedVersionRef = useRef(-1);
   const saveTimer = useRef(null);
   const lastAwsRef = useRef(null);
+  const lastNoteRef = useRef(null);
 
   const provider = providers.find((p) => p.id === providerId) || providers[0];
   const style = styleById(styleId);
@@ -178,6 +181,7 @@ export default function App() {
     lsSet(LS.scene, name);
     setThread([]);
     lastAwsRef.current = null;
+    lastNoteRef.current = null;
     readyRef.current = true;
   }, [applyLoaded, flush]);
 
@@ -291,14 +295,20 @@ export default function App() {
 
       // AWS architecture mode: explicit, or auto when the request (or the selection) is about AWS
       const { diagram, selected } = findAwsDiagram(all, sel, lastAwsRef.current);
-      const wantsAws = diagramMode === "aws" || (diagramMode === "auto" && awsStatus.installed && (AWS_HINT.test(text) || selected));
+      const { note, selected: noteSelected } = findNote(all, sel, lastNoteRef.current);
+      // notes: explicit, or auto when asked for notes / a cheat sheet / a study guide (or editing a note)
+      const wantsNotes = diagramMode === "notes" || (diagramMode === "auto" && (NOTES_HINT.test(text) || noteSelected));
+      const wantsAws = !wantsNotes && (diagramMode === "aws" || (diagramMode === "auto" && awsStatus.installed && (AWS_HINT.test(text) || selected)));
+      const iterateNote = wantsNotes && note && (noteSelected || EDIT_VERB.test(text));
+      const notesCtx = { note: iterateNote ? note : null };
       if (wantsAws && !awsStatus.installed) throw new Error("AWS icons are not installed yet: open provider settings (the sliders icon) and install them.");
       const iterate = wantsAws && diagram && (selected || EDIT_VERB.test(text));
       const awsCtx = { diagram: iterate ? diagram : null };
       const done = await drawStream(
         {
           prompt: text, context, knownIds, history: thread,
-          mode: wantsAws ? "aws" : "general", awsSpec: iterate ? JSON.stringify(diagram.spec) : "",
+          mode: wantsNotes ? "notes" : wantsAws ? "aws" : "general", awsSpec: iterate ? JSON.stringify(diagram.spec) : "",
+          noteSpec: iterateNote ? JSON.stringify(note.spec) : "",
           providerId: provider.id, model, effort: provider.capabilities.effort ? effort : "",
           files: attached.files, images: images.map(({ mime, data }) => ({ mime, data })),
           palette: PALETTES[style.palette].fills,
@@ -311,10 +321,10 @@ export default function App() {
           },
         },
       );
-      const note = await applyReply(done.reply, all, text, awsCtx);
+      const outcome = await applyReply(done.reply, all, text, awsCtx, notesCtx);
       const m = done.meta;
       const tok = m.usage ? ` · ${m.usage.in ?? "?"}→${m.usage.out ?? "?"} tok` : "";
-      setMsg(`${note} · ${m.model} · ${(m.ms / 1000).toFixed(1)}s${tok}${m.attempts > 1 ? ` · ${m.attempts} tries` : ""}`);
+      setMsg(`${outcome} · ${m.model} · ${(m.ms / 1000).toFixed(1)}s${tok}${m.attempts > 1 ? ` · ${m.attempts} tries` : ""}`);
       setPrompt("");
       setImages([]); // one-shot; attached files stay as session context
     } catch (e) {
@@ -342,7 +352,16 @@ export default function App() {
     return { prefix, ...renderAws(layout, { spec, prefix, origin, icons }) };
   }
 
-  async function applyReply(reply, all, promptText, awsCtx = { diagram: null }) {
+  // lay out a notes spec as cards (fonts first: text is measured with whatever is loaded)
+  async function renderNotesReply(spec, all, note) {
+    await loadNoteFonts();
+    const prefix = newNotesPrefix();
+    const origin = note ? note.origin : (({ ox, oy }) => ({ x: ox, y: oy }))(freeSpace(all));
+    const charWidth14 = measureText("M".repeat(40), "14px Cascadia, monospace") / 40;
+    return { prefix, charWidth14, ...renderNotes(spec, { measure: measureText, origin, prefix }) };
+  }
+
+  async function applyReply(reply, all, promptText, awsCtx = { diagram: null }, notesCtx = { note: null }) {
     // 1. edits to what is already there
     let elements = applyDeletes(applyUpdates(all, reply.update, measureText), reply.delete);
 
@@ -351,6 +370,13 @@ export default function App() {
     if (reply.aws) {
       awsOut = await renderAwsReply(reply.aws, all, awsCtx.diagram);
       if (awsCtx.diagram) elements = applyDeletes(elements, awsCtx.diagram.ids);
+    }
+
+    // 1c. notes: replace the note being edited, or go into free space
+    let notesOut = null;
+    if (reply.notes) {
+      notesOut = await renderNotesReply(reply.notes, all, notesCtx.note);
+      if (notesCtx.note) elements = applyDeletes(elements, notesCtx.note.ids);
     }
 
     // 2. new content: Mermaid (auto-laid-out) and/or freeform shapes
@@ -395,18 +421,27 @@ export default function App() {
       lastAwsRef.current = awsOut.prefix;
     }
 
+    if (notesOut) {
+      const c = tagNotes(fixMonospace(convertToExcalidrawElements(notesOut.skeleton, { regenerateIds: false }), notesOut.charWidth14), notesOut.prefix, reply.notes);
+      created = [...created, ...c];
+      lastNoteRef.current = notesOut.prefix;
+    }
+
     // 3. one undoable step for the whole reply
     excal.updateScene({ elements: [...elements, ...created], captureUpdate: CaptureUpdateAction.IMMEDIATELY });
     // after the scene has rendered, so the bounds of the new elements are known
     if (created.length) setTimeout(() => excal.scrollToContent(created, { fitToContent: true, maxZoom: 1, animate: true }), 60);
 
     const labels = created.filter((e) => e.type === "text").map((e) => e.text);
-    const result = awsOut
+    const result = notesOut
+      ? `${notesCtx.note ? "updated" : "wrote"} notes "${reply.notes.title}" (${reply.notes.sections.length} sections)`
+      : awsOut
       ? `${awsCtx.diagram ? "updated" : "drew"} an AWS diagram with ${reply.aws.nodes.length} services: ${reply.aws.nodes.map((n) => n.label).slice(0, 10).join(", ")}`
       : summarizeResult(reply, labels);
     setThread((t) => [...t, { prompt: promptText, result }].slice(-6));
     const nothing = !created.length && !reply.update.length && !reply.delete.length;
     if (mermaidErr && nothing) throw new Error(`The diagram had a syntax error (${mermaidErr}). Try again or rephrase.`);
+    if (notesOut) return `${notesCtx.note ? "Updated" : "Wrote"} notes · ${reply.notes.sections.length} sections`;
     if (awsOut) {
       const generic = reply.aws.nodes.filter((n) => !n.file).length;
       return `${awsCtx.diagram ? "Updated" : "Drew"} AWS diagram · ${reply.aws.nodes.length} services${generic ? ` (${generic} without an icon)` : ""}`;
@@ -478,11 +513,12 @@ export default function App() {
             />
           )}
           <Select
-            value={diagramMode} disabled={busy} onChange={setDiagramMode} title="Diagram type: Auto switches to AWS architecture when you mention AWS services"
+            value={diagramMode} disabled={busy} onChange={setDiagramMode} title="Output type: Auto picks Notes when you ask for notes or a cheat sheet, and AWS architecture when you mention AWS services"
             options={[
               { value: "auto", label: "Auto" },
               { value: "general", label: "General" },
               { value: "aws", label: awsStatus.installed ? "AWS architecture" : "AWS (install icons in settings)" },
+              { value: "notes", label: "Notes" },
             ]}
           />
           <Select

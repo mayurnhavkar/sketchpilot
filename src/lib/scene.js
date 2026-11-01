@@ -21,18 +21,25 @@ export function describeScene(elements, selectedIds = new Set(), cap = 150) {
   const lines = [];
   const knownIds = [];
   const clip = (s) => s.slice(0, 40).replace(/\n/g, " ");
-  // an AWS diagram is dozens of elements; summarise it as one line (edited through its spec instead)
+  // an AWS diagram or a note is dozens of elements; summarise each as one line (they are edited through their spec)
   const diagrams = [];
   for (const e of els) {
-    if (!e.customData?.awsSpec) continue;
-    const m = e.id.match(/^(aws[0-9a-z]+_)/);
-    try {
-      if (m) diagrams.push({ prefix: m[1], spec: JSON.parse(e.customData.awsSpec) });
-    } catch {}
+    for (const [key, re, kind] of [["awsSpec", /^(aws[0-9a-z]+_)/, "aws-diagram"], ["notesSpec", /^(nt[0-9a-z]{9}_)/, "notes"]]) {
+      if (!e.customData?.[key]) continue;
+      const m = e.id.match(re);
+      try {
+        if (m) diagrams.push({ prefix: m[1], spec: JSON.parse(e.customData[key]), kind });
+      } catch {}
+    }
   }
   for (const d of diagrams) {
-    const names = d.spec.nodes.map((n) => n.label).slice(0, 12).join(", ");
-    lines.push(`  aws-diagram${d.spec.title ? ` "${clip(d.spec.title)}"` : ""}: ${d.spec.nodes.length} services (${names})`);
+    if (d.kind === "notes") {
+      const names = d.spec.sections.map((x) => x.title || x.type).slice(0, 10).join(", ");
+      lines.push(`  notes "${clip(d.spec.title || "Notes")}": ${d.spec.sections.length} sections (${names})`);
+    } else {
+      const names = d.spec.nodes.map((n) => n.label).slice(0, 12).join(", ");
+      lines.push(`  aws-diagram${d.spec.title ? ` "${clip(d.spec.title)}"` : ""}: ${d.spec.nodes.length} services (${names})`);
+    }
   }
   const inDiagram = (e) => diagrams.some((d) => e.id.startsWith(d.prefix));
   const shown = els.filter((e) => !(e.type === "text" && e.containerId && byId[e.containerId]) && !inDiagram(e));

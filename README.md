@@ -5,7 +5,7 @@ Open-source [Excalidraw](https://github.com/excalidraw/excalidraw) with an inlin
 ```bash
 npm install
 npm run dev        # http://127.0.0.1:5173
-npm test           # 103 unit tests, no extra dependencies
+npm test           # 127 unit tests, no extra dependencies
 npm run aws:icons  # optional: install the official AWS Architecture Icons (or use settings in the app)
 ```
 
@@ -22,8 +22,23 @@ npm run aws:icons  # optional: install the official AWS Architecture Icons (or u
 | **File / folder context** | 📎 / 📁 attach text or code. Read in the browser; secrets (`.env`, keys, `node_modules`) are skipped. Warns when the provider is a cloud one. |
 | **Image input** | 🖼 or paste a screenshot / whiteboard photo into the bar (vision-capable provider and model). |
 | **Style presets** | Hand-drawn, Clean (grid-snapped), Mono, Bold sketch. |
+| **Notes** | "Write me notes on linked lists in Python" produces a laid-out study page: title, pointer diagrams, key ideas, syntax-coloured code cards, complexity tables, gotchas, steps and practice questions. Select a card and ask for changes ("add a section on cycle detection") and the note is updated in place. See below. |
 | **AWS architecture** | Professional AWS diagrams with the official icons, groups (Cloud, Region, VPC, zones, subnets), numbered flows and orthogonal routing. See below. |
 | **Stats** | Model, time and token counts for each call. |
+
+## Notes
+
+Ask for notes, a cheat sheet, a study guide or flashcards and the bar switches to Notes mode (**Output: Auto**; force it with **Notes**).
+
+The model writes the content as a small spec (sections of type `points`, `code`, `table`, `callout`, `steps`, `qa`, and `chain` pictures of data structures such as linked lists, doubly linked lists, arrays and flows). It never positions anything: `src/lib/notes/render.js` lays the page out deterministically, a title block, full-width pictures, then a three-column grid of cards sized to their content.
+
+- **Code cards** are real monospace code with syntax colours. Excalidraw has no rich text, so each colour is its own transparent text layer on the same grid (`src/lib/notes/highlight.js`): 3-5 elements per card, and the layers always line up. Supports Python, JavaScript/TypeScript, Java/C#/Kotlin, C/C++, Go, Rust, SQL, Bash and JSON.
+- **Pictures** for linked structures show `head`/`tail` pointers, `[data | next]` cells, the `None` terminator and, for doubly linked lists, `prev` and `next` links.
+- **Cards are groups**, so a card moves as one piece.
+- **Edit in place:** select any part of a note and describe the change; the model returns the full updated note and it replaces the old one.
+- Everything is validated server-side (`server/notes.js`): section types, sizes and counts are capped, markdown is stripped, code fences removed. Attached files are treated as data, not instructions.
+
+One thing worth knowing: Excalidraw sizes a text element from whichever font is loaded when it is created and clips text to that width. The notes renderer waits for the fonts and then sets monospace sizes exactly, which is what keeps code from being cut off.
 
 ## AWS architecture diagrams
 
@@ -72,6 +87,7 @@ The dev server binds to 127.0.0.1. `/api/*` also requires a local `Host`, a same
 server/   prompt + reply validation, provider adapters, scenes, AWS catalogue + icon importer, API plugin
 src/lib/  pure scene logic (edit ops, ids, style, layout), file readers
 src/lib/aws/  layout, routing, AWS renderer, diagram lookup
+src/lib/notes/  note renderer, syntax highlighter, note lookup
 src/      React UI
 test/     node:test suites
 scenes/   your drawings (git-ignored)

@@ -118,10 +118,12 @@ export default function claudeBridge() {
     const knownIds = (Array.isArray(p.knownIds) ? p.knownIds : []).filter((i) => typeof i === "string").slice(0, 3000);
     const awsIndex = p.mode === "aws" ? readIndex(awsDir) : null;
     if (p.mode === "aws" && !awsIndex) return send(res, 400, { error: "AWS icons are not installed yet (open provider settings (the sliders icon) and install them)." });
-    const system = buildSystem({ palette: cleanPalette(p.palette), awsIndex });
+    const notesMode = p.mode === "notes";
+    const system = buildSystem({ palette: cleanPalette(p.palette), awsIndex, notes: notesMode });
     let user = buildUser({
       prompt: p.prompt, context: p.context, history: Array.isArray(p.history) ? p.history : [], files: cleanFiles(p.files),
       awsSpec: awsIndex && typeof p.awsSpec === "string" ? p.awsSpec : "",
+      noteSpec: notesMode && typeof p.noteSpec === "string" ? p.noteSpec : "",
     });
 
     const ac = new AbortController();
@@ -150,7 +152,7 @@ export default function claudeBridge() {
         return res.end();
       }
       try {
-        const reply = sanitizeReply(parseModelJson(out.text), knownIds, { awsIndex });
+        const reply = sanitizeReply(parseModelJson(out.text), knownIds, { awsIndex, notes: notesMode });
         emit({ t: "done", reply, meta: { provider: provider.id, model: model || "(default)", ms: Date.now() - t0, attempts: attempt, usage: out.usage } });
         return res.end();
       } catch (e) {
