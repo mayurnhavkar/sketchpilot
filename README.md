@@ -1,6 +1,6 @@
-# excalidraw-claude
+# Sketchpilot
 
-Open-source [Excalidraw](https://github.com/excalidraw/excalidraw) with an inline **Ask AI** bar. Describe a diagram, or select shapes and describe a change. Model-agnostic: a CLI, a paid API, or a local open-source model.
+An open-source AI layer for [Excalidraw](https://github.com/excalidraw/excalidraw): an inline **Ask AI** bar on top of the real editor. Describe a diagram, or select shapes and describe a change. Model-agnostic: a CLI, a paid API, or a local open-source model.
 
 ```bash
 npm install
@@ -87,7 +87,7 @@ Tested against the real Obsidian app with the Excalidraw plugin 2.29.0: files op
 Configuration layers, later wins:
 
 1. `providers.config.js` (code defaults)
-2. `~/.config/excalidraw-claude/providers.json` (written by the Settings panel (sliders icon); owner-only file, holds UI-entered keys)
+2. `~/.config/sketchpilot/providers.json` (written by the Settings panel (sliders icon); owner-only file, holds UI-entered keys)
 3. `.env` / environment (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, see `.env.example`), used when no key was saved in the UI
 
 Keys never go back to the browser. CLI commands can only be defined in `providers.config.js` or by hand-editing the config file, never from the UI.
@@ -123,3 +123,9 @@ public/aws-icons/  downloaded AWS icons (git-ignored)
 - The model places freeform shapes by guesswork; Mermaid is more reliable for graphs.
 - Small local models (3B-7B) draw less carefully than large ones; there is one automatic retry.
 - Excalidraw's undo does not cover switching scenes (history is cleared on switch; use 🕘 for older saves).
+
+## Credits and license
+
+Sketchpilot is an addition to the open-source [Excalidraw](https://github.com/excalidraw/excalidraw) project (MIT) and embeds the `@excalidraw/excalidraw` editor; the drawing canvas, hand-drawn style and `.excalidraw` file format are theirs. Mermaid conversion uses `@excalidraw/mermaid-to-excalidraw`. AWS icons are downloaded from AWS's own package and are not redistributed here.
+
+Released under the [MIT License](LICENSE). Not affiliated with or endorsed by Excalidraw or AWS.

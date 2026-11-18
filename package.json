@@ -1,6 +1,9 @@
 {
-  "name": "excalidraw-claude",
+  "name": "sketchpilot",
   "private": true,
+  "description": "An open-source AI layer for Excalidraw: describe a diagram, edit it by selection, generate notes and AWS architecture.",
+  "license": "MIT",
+  "author": "Mayur Nhavkar",
   "version": "0.1.0",
   "type": "module",
   "scripts": {
