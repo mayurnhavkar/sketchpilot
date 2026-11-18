@@ -27,7 +27,7 @@ export function frontmatter({ title, tags = [], created, extra = {} }) {
   const clean = [...new Set(tags.map(tagify).filter(Boolean))];
   if (clean.length) lines.push(`tags: [${clean.join(", ")}]`);
   if (created) lines.push(`created: ${created}`);
-  lines.push("source: excalidraw-claude");
+  lines.push("source: sketchpilot");
   for (const [k, v] of Object.entries(extra)) lines.push(`${k}: ${Array.isArray(v) ? `[${v.map(yamlStr).join(", ")}]` : yamlStr(v)}`);
   lines.push("---");
   return lines.join("\n") + "\n";

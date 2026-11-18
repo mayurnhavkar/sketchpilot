@@ -69,7 +69,7 @@ export function buildScene(elements, files = {}, background = "#ffffff") {
   return {
     type: "excalidraw",
     version: 2,
-    source: "excalidraw-claude",
+    source: "sketchpilot",
     elements: shortenTextIds(live),
     appState: { viewBackgroundColor: background },
     files: Object.fromEntries(Object.entries(files).filter(([id]) => used.has(id))),

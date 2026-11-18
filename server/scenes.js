@@ -37,7 +37,7 @@ export function createScenes(dir) {
     const data = JSON.stringify({
       type: "excalidraw",
       version: 2,
-      source: "excalidraw-claude",
+      source: "sketchpilot",
       elements: scene.elements,
       appState: { viewBackgroundColor: scene.appState?.viewBackgroundColor || "#ffffff" },
       files: scene.files || {},

@@ -68,7 +68,7 @@ test("frontmatter is valid YAML, de-duplicates and cleans tags, quotes awkward t
   assert.deepEqual(y.tags, ["notes", "data-structures"]);
   assert.equal(String(y.created).slice(0, 10), "2026-11-01");
   assert.deepEqual(y.aliases, ["A", "B: c"]);
-  assert.equal(y.source, "excalidraw-claude");
+  assert.equal(y.source, "sketchpilot");
 });
 
 test("relatedTitles: whole words, case-insensitive, no self, min length, no regex injection, capped", () => {
