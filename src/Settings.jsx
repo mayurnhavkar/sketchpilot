@@ -198,7 +198,7 @@ export default function Settings({ providers, presets, onClose, onChanged, awsSt
         </div>
         {err && <div style={{ color: "#c92a2a", fontSize: 12, marginTop: 6 }}>{err}</div>}
         <div style={{ fontSize: 12, color: "#868e96", marginTop: 12 }}>
-          Keys are saved to ~/.config/excalidraw-claude/providers.json (owner-only). Keys in .env or the environment work too.
+          Keys are saved to ~/.config/sketchpilot/providers.json (owner-only). Keys in .env or the environment work too.
           CLI providers are defined in providers.config.js.
         </div>
       </div>

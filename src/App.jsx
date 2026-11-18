@@ -23,15 +23,18 @@ import { fixMonospace, loadNoteFonts, newNotesPrefix, renderNotes } from "./lib/
 import { NOTES_HINT, findNote, tagNotes } from "./lib/notes/note.js";
 
 const LS = {
-  scene: "excalidraw-claude:scene-name",
-  legacy: "excalidraw-claude:scene",
-  provider: "excalidraw-claude:provider",
-  effort: "excalidraw-claude:effort",
-  style: "excalidraw-claude:style",
-  diagram: "excalidraw-claude:diagram-mode",
+  scene: "sketchpilot:scene-name",
+  legacy: "sketchpilot:scene",
+  provider: "sketchpilot:provider",
+  effort: "sketchpilot:effort",
+  style: "sketchpilot:style",
+  diagram: "sketchpilot:diagram-mode",
 };
+// Keys were renamed from "excalidraw-claude:*"; fall back to the old name so saved choices survive.
 const lsGet = (k, d = "") => {
-  try { return localStorage.getItem(k) ?? d; } catch { return d; }
+  try {
+    return localStorage.getItem(k) ?? localStorage.getItem(k.replace(/^sketchpilot:/, "excalidraw-claude:")) ?? d;
+  } catch { return d; }
 };
 const lsSet = (k, v) => {
   try { localStorage.setItem(k, v); } catch {}
@@ -115,7 +118,7 @@ export default function App() {
 
   useEffect(() => {
     if (!provider) return;
-    setModel(lsGet(`excalidraw-claude:model:${provider.id}`) || provider.defaultModel);
+    setModel(lsGet(`sketchpilot:model:${provider.id}`) || provider.defaultModel);
     setModelList(provider.models);
     let live = true;
     api(`/providers/${provider.id}/models`).then((d) => live && setModelList(d.models)).catch(() => {});
@@ -124,7 +127,7 @@ export default function App() {
 
   const pickModel = (v) => {
     setModel(v);
-    lsSet(`excalidraw-claude:model:${provider.id}`, v);
+    lsSet(`sketchpilot:model:${provider.id}`, v);
   };
 
   // ---------- scenes: plain .excalidraw files on disk ----------

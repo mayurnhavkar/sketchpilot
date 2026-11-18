@@ -4,19 +4,24 @@ import path from "node:path";
 import defaults from "../providers.config.js";
 
 export const CONFIG_PATH =
+  process.env.SKETCHPILOT_CONFIG ||
   process.env.EXCALIDRAW_CLAUDE_CONFIG ||
-  path.join(os.homedir(), ".config", "excalidraw-claude", "providers.json");
+  path.join(os.homedir(), ".config", "sketchpilot", "providers.json");
+
+// Projects created before the rename kept their settings here; still read it.
+const LEGACY_CONFIG_PATH = path.join(os.homedir(), ".config", "excalidraw-claude", "providers.json");
 
 export const ID_RE = /^[a-z0-9-]{1,40}$/;
 const LOCAL_URL = /^https?:\/\/(localhost|127\.0\.0\.1)/;
 
 export function readUserConfig() {
-  try {
-    const c = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
-    return { providers: c.providers || {} };
-  } catch {
-    return { providers: {} };
+  for (const file of [CONFIG_PATH, LEGACY_CONFIG_PATH]) {
+    try {
+      const c = JSON.parse(fs.readFileSync(file, "utf8"));
+      return { providers: c.providers || {} };
+    } catch {}
   }
+  return { providers: {} };
 }
 
 export function writeUserConfig(cfg) {

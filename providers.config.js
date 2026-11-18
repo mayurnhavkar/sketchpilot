@@ -1,6 +1,6 @@
 // Code-level defaults. Layering (later wins):
 //   1. this file
-//   2. ~/.config/excalidraw-claude/providers.json  (written by the Settings panel; holds UI-entered keys)
+//   2. ~/.config/sketchpilot/providers.json  (written by the Settings panel; holds UI-entered keys)
 //   3. .env  (apiKeyEnv names below, e.g. ANTHROPIC_API_KEY) is used when no key was saved in the UI
 //
 // Provider types:
